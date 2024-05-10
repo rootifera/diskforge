@@ -56,15 +56,17 @@ def identify_disks():
 
 def clear_partitions(disk, progress_bar, success_count, failure_count):
     try:
-        # Using parted for this operation
-        subprocess.run(['sudo', 'parted', '--script', disk, 'mklabel', 'gpt'], check=True)
+        # clear existing partitions,  gpt and create new partition.
+        subprocess.run(['sudo', 'parted', '--script', disk, 'mklabel', 'gpt', 'mkpart', 'primary', '0%', '100%'],
+                       check=True)
+
         progress_bar.update(1)
         success_count.append(disk)
         # logs goes into diskforge.log
-        logging.info(f"Partitions cleared for disk {disk}")
+        logging.info(f"Partitions cleared for disk {disk} and GPT label created")
     except subprocess.CalledProcessError as e:
         failure_count.append(disk)
-        logging.error(f"Failed to clear partitions for disk {disk}: {e}")
+        logging.error(f"Failed to clear partitions and create GPT label for disk {disk}: {e}")
 
 
 def clear_partitions_all(disks):
@@ -85,6 +87,58 @@ def clear_partitions_all(disks):
         thread.start()
 
     # waiting for all to complete
+    for thread in threads:
+        thread.join()
+
+    progress_bar.close()
+    # this is here to make the progress bar visible, otherwise it just disappears
+    time.sleep(2)
+
+    # reset the terminal, just a lazy trick to print properly
+    os.system('reset')
+
+    print(f"Total Success: {len(success_count):<5}")
+    print(f"Total Failure: {len(failure_count):<5}")
+    print("Moving to next stage in 5 seconds")
+    time.sleep(5)  # just to let the user read again.
+
+
+def format_disk(disk, progress_bar, success_count, failure_count):
+    try:
+        # append partition number 1 to the disk path
+        disk_partition = disk + '1'
+
+        # formatting as exFAT
+        subprocess.run(['sudo', 'mkfs.exfat', disk_partition], check=True, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+
+        success_count.append(disk)
+        logging.info(f"Formatted disk {disk_partition} as exFAT")
+    except subprocess.CalledProcessError as e:
+        failure_count.append(disk)
+        logging.error(f"Failed to format disk {disk_partition}: {e}")
+    finally:
+        progress_bar.update(1)
+
+
+def format_all_disks(disks):
+    success_count = []
+    failure_count = []
+
+    print(f"Total Disks found: {len(disks)}")
+    print("Formatting disks to exFAT...")
+
+    # single progress bar for all disks
+    progress_bar = tqdm(total=len(disks), desc="Formatting Progress")
+
+    # create threads for formatting each disk
+    threads = []
+    for disk in disks:
+        thread = threading.Thread(target=format_disk, args=(disk, progress_bar, success_count, failure_count))
+        threads.append(thread)
+        thread.start()
+
+    # wait for all threads to complete
     for thread in threads:
         thread.join()
 
