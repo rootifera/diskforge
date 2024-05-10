@@ -23,7 +23,7 @@ def _all_disks():
             disk_name = line.strip().split()[0]
             if disk_name == 'NAME' or disk_name.startswith('sr'):
                 continue
-            disk_name = ''.join(filter(str.isalpha, disk_name))  # clean up
+            disk_name = '/dev/' + ''.join(filter(str.isalpha, disk_name))  # /dev/ added after clean up
             disk_names.add(disk_name)
 
         return list(disk_names)
@@ -37,7 +37,7 @@ def identify_disks():
 
     # find OS disk, we don't want to format that
     os_disk = os.popen("df / | grep -Eo '^/[^0-9]+'").read().strip()
-    os_disk = os_disk.split('/')[-1]
+    os_disk = '/dev/' + os_disk.split('/')[-1]  # Add '/dev/' to the beginning of the disk name
 
     if os_disk not in disk_list:
         # safety net, if we can't find the OS disk let's not wipe anything.
@@ -74,16 +74,13 @@ def clear_partitions_all(disks):
     print(f"Total Disks found: {len(disks)}")
     print("Clearing partition tables...")
 
-    # adding '/dev/' to disk names
-    dev_disks = ['/dev/' + disk for disk in disks]
-
     # single progress bar for all
-    progress_bar = tqdm(total=len(dev_disks), desc="Overall Progress")
+    progress_bar = tqdm(total=len(disks), desc="Overall Progress")
 
     # creating threads for each disk
     threads = []
-    for dev_disk in dev_disks:
-        thread = threading.Thread(target=clear_partitions, args=(dev_disk, progress_bar, success_count, failure_count))
+    for device in disks:
+        thread = threading.Thread(target=clear_partitions, args=(device, progress_bar, success_count, failure_count))
         threads.append(thread)
         thread.start()
 
