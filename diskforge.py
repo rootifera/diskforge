@@ -81,6 +81,9 @@ def clear_partitions(disk, progress_bar, success_count, failure_count):
         # clear existing partitions, gpt and create new partition.
         subprocess.run(['sudo', 'parted', '--script', disk, 'mklabel', 'gpt', 'mkpart', 'primary', '0%', '100%'],
                        check=True)
+        # set partition type to msftdata - workaround for fs not recognized by M$
+        subprocess.run(['sudo', 'parted', '--script', disk, 'set', '1', 'msftdata', 'on'],
+                       check=True)
 
         # verify disk state after operation - double checking
         verify_disk_partitions(disk)
