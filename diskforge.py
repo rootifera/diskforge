@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -7,8 +8,16 @@ import time
 
 from tqdm import tqdm
 
-# Set up logging
+# logging
 logging.basicConfig(filename='diskforge.log', level=logging.INFO)
+
+
+def confirm_action(disks):
+    print(f"The following disks will be cleared and formatted: {', '.join(disks)}")
+    confirmation = input("Are you sure you want to proceed? Type 'yes' to continue: ")
+    if confirmation.lower() != 'yes':
+        print("Operation cancelled.")
+        sys.exit(0)
 
 
 def _all_disks():
@@ -54,15 +63,31 @@ def identify_disks():
     return disk_list
 
 
+def verify_disk_partitions(disk):
+    try:
+        output = subprocess.check_output(['lsblk', '-o', 'NAME,SIZE,TYPE', disk]).decode()
+        logging.info(f"Disk {disk} state:\n{output}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to verify disk {disk}: {e}")
+        return False
+    return True
+
+
 def clear_partitions(disk, progress_bar, success_count, failure_count):
     try:
-        # clear existing partitions,  gpt and create new partition.
+        # verify disk state before operation
+        verify_disk_partitions(disk)
+
+        # clear existing partitions, gpt and create new partition.
         subprocess.run(['sudo', 'parted', '--script', disk, 'mklabel', 'gpt', 'mkpart', 'primary', '0%', '100%'],
                        check=True)
 
+        # verify disk state after operation - double checking
+        verify_disk_partitions(disk)
+
         progress_bar.update(1)
         success_count.append(disk)
-        # logs goes into diskforge.log
+        # logs go into diskforge.log - not sure if each run clears the log
         logging.info(f"Partitions cleared for disk {disk} and GPT label created")
     except subprocess.CalledProcessError as e:
         failure_count.append(disk)
@@ -76,7 +101,7 @@ def clear_partitions_all(disks):
     print(f"Total Disks found: {len(disks)}")
     print("Clearing partition tables...")
 
-    # single progress bar for all
+    # Single progress bar for all
     progress_bar = tqdm(total=len(disks), desc="Overall Progress")
 
     # creating threads for each disk
@@ -151,3 +176,40 @@ def format_all_disks(disks):
 
     print(f"Total Success: {len(success_count):<5}")
     print(f"Total Failure: {len(failure_count):<5}")
+
+
+def get_disk_sizes(disks):
+    disk_sizes = {}
+
+    for disk in disks:
+        try:
+            output = subprocess.check_output(['lsblk', '-b', '--output', 'SIZE', '-n', '-d', disk]).decode().strip()
+            size = int(output)
+            disk_sizes[disk] = size
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error: Unable to retrieve size information for disk {disk} - {e}")
+
+    return disk_sizes
+
+
+def convert_size(size_in_bytes):
+    size_units = ['bytes', 'KB', 'MB', 'GB', 'TB']
+    exponent = int(math.log(size_in_bytes, 1024))
+    size = size_in_bytes / (1024 ** exponent)
+    rounded_size = round(size)
+    formatted_size = f"{rounded_size} {size_units[exponent]}"
+    return formatted_size
+
+
+def set_labels(disks):
+    disk_sizes = get_disk_sizes(disks)
+
+    for disk, size in disk_sizes.items():
+        partition = disk + '1'  # partition number is always 1
+        label = convert_size(size)
+        try:
+            subprocess.run(['sudo', 'exfatlabel', partition, label], check=True, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+            logging.info(f"Label set for disk {disk}: {label}")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error setting label for disk {disk}: {e}")
