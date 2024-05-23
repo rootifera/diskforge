@@ -200,8 +200,33 @@ def convert_size(size_in_bytes):
     exponent = int(math.log(size_in_bytes, 1024))
     size = size_in_bytes / (1024 ** exponent)
     rounded_size = round(size)
-    formatted_size = f"{rounded_size} {size_units[exponent]}"
-    return formatted_size
+
+    # had to hardcode that, so we don't get non-standard size labels (like 930GB instead of 1TB)
+    size_ranges = [
+        (10 * 1024 ** 3, 16 * 1024 ** 3, '16GB'),
+        (25 * 1024 ** 3, 32 * 1024 ** 3, '32GB'),
+        (50 * 1024 ** 3, 64 * 1024 ** 3, '64GB'),
+        (100 * 1024 ** 3, 120 * 1024 ** 3, '120GB'),
+        (115 * 1024 ** 3, 128 * 1024 ** 3, '128GB'),
+        (200 * 1024 ** 3, 256 * 1024 ** 3, '256GB'),
+        (400 * 1024 ** 3, 500 * 1024 ** 3, '500GB'),
+        (900 * 1024 ** 3, 1000 * 1024 ** 3, '1TB'),
+        (1300 * 1024 ** 3, 1500 * 1024 ** 3, '1.5TB'),
+        (1700 * 1024 ** 3, 2000 * 1024 ** 3, '2TB'),
+        (2500 * 1024 ** 3, 3000 * 1024 ** 3, '3TB'),
+        (3500 * 1024 ** 3, 4000 * 1024 ** 3, '4TB'),
+        (5500 * 1024 ** 3, 6000 * 1024 ** 3, '6TB'),
+        (7000 * 1024 ** 3, 8000 * 1024 ** 3, '8TB'),
+        (9000 * 1024 ** 3, 10000 * 1024 ** 3, '10TB'),
+        (11000 * 1024 ** 3, 12000 * 1024 ** 3, '12TB')
+    ]
+
+    for start, end, label in size_ranges:
+        if start <= size_in_bytes < end:
+            return f"{rounded_size} {size_units[exponent]} ({label})"
+
+    # fallback - if size doesn't fall into any predefined range, return the default formatted size
+    return f"{rounded_size} {size_units[exponent]}"
 
 
 def set_labels(disks):
