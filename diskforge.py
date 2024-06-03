@@ -41,42 +41,26 @@ def _all_disks():
         return []
 
 
-def get_disk_from_mount_point(mount_point):
-    try:
-        disk = os.popen(f"df {mount_point} | tail -1 | awk '{{print $1}}'").read().strip()
-        return disk
-    except Exception as e:
-        print(f"Error retrieving disk for mount point {mount_point}: {e}")
-        return None
-
-
 def identify_disks():
     disk_list = _all_disks()
 
+    # Check for the presence of an NVMe disk and set it as the OS disk if found
+    nvme_disk = next((disk for disk in disk_list if disk.startswith('/dev/nvme')), None)
 
-    boot_disk = get_disk_from_mount_point("/boot")
-    efi_disk = get_disk_from_mount_point("/boot/efi")
+    if nvme_disk:
+        os_disk = nvme_disk
+    else:
+        # Find OS disk, we don't want to format that
+        os_disk = os.popen("df / | grep -Eo '^/[^0-9]+'").read().strip()
+        os_disk = '/dev/' + os_disk.split('/')[-1]  # Add '/dev/' to the beginning of the disk name
 
-    os_disks = set()
-    if boot_disk:
-        if "nvme" in boot_disk:
-            os_disks.add("/dev/" + boot_disk.split('p')[0])
-        else:
-            os_disks.add("/dev/" + boot_disk[:-1])
-    if efi_disk:
-        if "nvme" in efi_disk:
-            os_disks.add("/dev/" + efi_disk.split('p')[0])
-        else:
+        if os_disk not in disk_list:
+            # Safety net, if we can't find the OS disk let's not wipe anything.
+            print("Error: Unable to identify the OS disk. Operation halted.")
+            sys.exit(1)
 
-            os_disks.add("/dev/" + efi_disk[:-1])
-
-    if not os_disks:
-        print("Error: Unable to identify the OS disk. Operation halted.")
-        sys.exit(1)
-
-    for os_disk in os_disks:
-        if os_disk in disk_list:
-            disk_list.remove(os_disk)
+    # Remove the OS disk from the disks list
+    disk_list.remove(os_disk)
 
     if len(disk_list) == 0:
         print("No other disks found.")
