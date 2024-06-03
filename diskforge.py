@@ -58,7 +58,7 @@ def identify_disks():
        #     print("Error: Unable to identify the OS disk. Operation halted.")
        #     sys.exit(1)
 
-    disk_list.remove(os_disk)
+    # disk_list.remove(os_disk)
 
     if len(disk_list) == 0:
         print("No other disks found.")
