@@ -54,7 +54,7 @@ def identify_disks():
 
     for mount in mounts:
         if "/boot" in mount or "/boot/efi" in mount:
-            os_disk = '/dev/' + mount.split()[0].lstrip('│─├─')  # Remove leading formatting characters
+            os_disk = '/dev/' + mount.split()[0].lstrip('│─├─')
             os_disks.append(os_disk)
             print("OS Disk found:", os_disk)
 
@@ -251,3 +251,28 @@ def set_labels(disks):
             logging.info(f"Label set for disk {disk}: {label}")
         except subprocess.CalledProcessError as e:
             logging.error(f"Error setting label for disk {disk}: {e}")
+
+
+def draw_disk_size_graph(disk_sizes):
+    max_size = max(disk_sizes.values())
+
+    for disk, size in disk_sizes.items():
+        print(f"{disk} = ", end="")
+
+        if size >= 10 ** 12:
+            unit = "TB"
+            divisor = 10 ** 12
+        else:
+            unit = "GB"
+            divisor = 10 ** 9
+
+        scaled_size = size * 40 // max_size
+        bar = "|" + "=" * scaled_size + "|"
+
+        print(bar.ljust(80), end=" ")
+        print(f"{size // divisor}{unit}")
+
+
+def visualize_disk_sizes(disks):
+    disk_sizes = get_disk_sizes(disks)
+    draw_disk_size_graph(disk_sizes)
