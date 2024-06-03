@@ -347,6 +347,6 @@ def check_disk_health(disks):
             elif health_status == 'Warning':
                 print(f"{Fore.YELLOW}{disk_label} has warnings. Issues: {', '.join(warnings)}")
             else:
-                print(f"{disk_label} is healthy.")
+                print(f"{Fore.GREEN}{disk_label} is healthy.")
         else:
             print(f"Failed to retrieve S.M.A.R.T. data for {disk_label}")
