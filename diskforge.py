@@ -54,9 +54,9 @@ def identify_disks():
         os_disk = os.popen("df / | grep -Eo '^/[^0-9]+'").read().strip()
         os_disk = '/dev/' + os_disk.split('/')[-1]  # Add '/dev/' to the beginning of the disk name
 
-        if os_disk not in disk_list:
-            print("Error: Unable to identify the OS disk. Operation halted.")
-            sys.exit(1)
+       # if os_disk not in disk_list:
+       #     print("Error: Unable to identify the OS disk. Operation halted.")
+       #     sys.exit(1)
 
     disk_list.remove(os_disk)
 
