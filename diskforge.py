@@ -343,7 +343,7 @@ def check_disk_health(disks):
         if smart_data:
             health_status, warnings = analyze_smart_data(smart_data)
             if health_status == 'Failed':
-                print(f"{Fore.RED}{disk_label} is failing. Immediate action is required! Issues: {', '.join(warnings)}")
+                print(f"{Fore.RED}{disk_label} is failing. Issues: {', '.join(warnings)}")
             elif health_status == 'Warning':
                 print(f"{Fore.YELLOW}{disk_label} has warnings. Issues: {', '.join(warnings)}")
             else:
