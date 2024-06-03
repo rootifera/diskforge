@@ -169,14 +169,12 @@ def format_all_disks(disks):
     # single progress bar for all disks
     progress_bar = tqdm(total=len(disks), desc="Formatting Progress")
 
-    # create threads for formatting each disk
     threads = []
     for disk in disks:
         thread = threading.Thread(target=format_disk, args=(disk, progress_bar, success_count, failure_count))
         threads.append(thread)
         thread.start()
 
-    # wait for all threads to complete
     for thread in threads:
         thread.join()
 
@@ -276,3 +274,78 @@ def draw_disk_size_graph(disk_sizes):
 def visualize_disk_sizes(disks):
     disk_sizes = get_disk_sizes(disks)
     draw_disk_size_graph(disk_sizes)
+
+
+def get_smart_data(disk):
+    try:
+        output = subprocess.check_output(['sudo', 'smartctl', '-a', disk], stderr=subprocess.STDOUT).decode()
+        return output
+    except subprocess.CalledProcessError as e:
+        # Print the error message but still return the output for parsing
+        # print(f"Error retrieving SMART data for disk {disk}: {e.output.decode().strip()}")
+        return e.output.decode()
+
+
+def analyze_smart_data(smart_data):
+    if not smart_data:
+        print("No SMART data to analyze.")
+        return None, []
+
+    lines = smart_data.split('\n')
+
+    attribute_values = {
+        'Reallocated_Sector_Ct': 0,
+        'Reported_Uncorrect': 0,
+        'Current_Pending_Sector': 0,
+        'UDMA_CRC_Error_Count': 0,
+        'Spin_Up_Time': 0,
+        'Seek_Error_Rate': 0,
+        'Hardware_ECC_Recovered': 0
+    }
+
+    attribute_map = {
+        'Reallocated_Sector_Ct': '  5 Reallocated_Sector_Ct',
+        'Reported_Uncorrect': '187 Reported_Uncorrect',
+        'Current_Pending_Sector': '197 Current_Pending_Sector',
+        'UDMA_CRC_Error_Count': '199 UDMA_CRC_Error_Count',
+        'Spin_Up_Time': '  3 Spin_Up_Time',
+        'Seek_Error_Rate': '  7 Seek_Error_Rate',
+        'Hardware_ECC_Recovered': '195 Hardware_ECC_Recovered'
+    }
+
+    for line in lines:
+        for attribute, identifier in attribute_map.items():
+            if line.startswith(identifier):
+                try:
+                    attribute_values[attribute] = int(line.split()[9])
+                except (IndexError, ValueError):
+                    print(f"Error parsing attribute {attribute} from line: {line}")
+
+    health_status = 'OK'  # return OK if all is well
+    warnings = []
+
+    for attribute, value in attribute_values.items():
+        if value > 0:
+            if attribute in ['Reallocated_Sector_Ct', 'Reported_Uncorrect']:
+                health_status = 'Failed'
+                warnings.append(f"{attribute} = {value}")
+            else:
+                health_status = 'Warning'
+                warnings.append(f"{attribute} = {value}")
+
+    return health_status, warnings
+
+
+def check_disk_health(disks):
+    for disk in disks:
+        smart_data = get_smart_data(disk)
+        if smart_data:
+            health_status, warnings = analyze_smart_data(smart_data)
+            if health_status == 'Failed':
+                print(f"Disk {disk} is failing. Immediate action is required! Issues: {', '.join(warnings)}")
+            elif health_status == 'Warning':
+                print(f"Disk {disk} has warnings. Issues: {', '.join(warnings)}")
+            else:
+                print(f"Disk {disk} is healthy.")
+        else:
+            print(f"Failed to retrieve S.M.A.R.T. data for disk {disk}")
