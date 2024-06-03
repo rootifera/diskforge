@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 import threading
-import timehttps://github.com/rootifera/diskforge/blob/main/diskforge.py
+import time
 
 from tqdm import tqdm
 
