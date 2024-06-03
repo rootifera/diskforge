@@ -138,7 +138,7 @@ def clear_partitions_all(disks):
     print(f"Total Success: {len(success_count):<5}")
     print(f"Total Failure: {len(failure_count):<5}")
     print("Moving to next stage in 5 seconds")
-    time.sleep(5)  # just to let the user read again.
+    time.sleep(5)  # giving user some time to read.
 
 
 def format_disk(disk, progress_bar, success_count, failure_count):
@@ -146,7 +146,7 @@ def format_disk(disk, progress_bar, success_count, failure_count):
         # append partition number 1 to the disk path
         disk_partition = disk + '1'
 
-        # formatting as exFAT
+        # formatting as exFAT - on ubuntu exfatprogs needs to be installed
         subprocess.run(['sudo', 'mkfs.exfat', disk_partition], check=True, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL)
 
@@ -281,7 +281,6 @@ def get_smart_data(disk):
         output = subprocess.check_output(['sudo', 'smartctl', '-a', disk], stderr=subprocess.STDOUT).decode()
         return output
     except subprocess.CalledProcessError as e:
-        # Print the error message but still return the output for parsing
         # print(f"Error retrieving SMART data for disk {disk}: {e.output.decode().strip()}")
         return e.output.decode()
 
