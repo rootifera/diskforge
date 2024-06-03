@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 import threading
-import time
+import timehttps://github.com/rootifera/diskforge/blob/main/diskforge.py
 
 from tqdm import tqdm
 
@@ -41,20 +41,42 @@ def _all_disks():
         return []
 
 
+def get_disk_from_mount_point(mount_point):
+    try:
+        disk = os.popen(f"df {mount_point} | tail -1 | awk '{{print $1}}'").read().strip()
+        return disk
+    except Exception as e:
+        print(f"Error retrieving disk for mount point {mount_point}: {e}")
+        return None
+
+
 def identify_disks():
     disk_list = _all_disks()
 
-    # find OS disk, we don't want to format that
-    os_disk = os.popen("df / | grep -Eo '^/[^0-9]+'").read().strip()
-    os_disk = '/dev/' + os_disk.split('/')[-1]  # Add '/dev/' to the beginning of the disk name
 
-    if os_disk not in disk_list:
-        # safety net, if we can't find the OS disk let's not wipe anything.
+    boot_disk = get_disk_from_mount_point("/boot")
+    efi_disk = get_disk_from_mount_point("/boot/efi")
+
+    os_disks = set()
+    if boot_disk:
+        if "nvme" in boot_disk:
+            os_disks.add("/dev/" + boot_disk.split('p')[0])
+        else:
+            os_disks.add("/dev/" + boot_disk[:-1])
+    if efi_disk:
+        if "nvme" in efi_disk:
+            os_disks.add("/dev/" + efi_disk.split('p')[0])
+        else:
+
+            os_disks.add("/dev/" + efi_disk[:-1])
+
+    if not os_disks:
         print("Error: Unable to identify the OS disk. Operation halted.")
         sys.exit(1)
 
-    # remove the OS disk from the disks list
-    disk_list.remove(os_disk)
+    for os_disk in os_disks:
+        if os_disk in disk_list:
+            disk_list.remove(os_disk)
 
     if len(disk_list) == 0:
         print("No other disks found.")
