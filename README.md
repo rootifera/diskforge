@@ -10,5 +10,8 @@ This is a multi-threaded disk formatter application created for a specific use a
   - All disks have their partition tables wiped and then recreated as GPT.
   - All disks are formatted as exFAT.
   - Finally, all disks are labeled according to their size.
+ 
+![Sample Output](https://i.gyazo.com/4ce75b59e69c5edf28ef555e02da6319.png)
+
 
 That's pretty much all.
