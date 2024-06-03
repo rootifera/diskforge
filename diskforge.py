@@ -24,7 +24,6 @@ def _all_disks():
     try:
         output = subprocess.check_output(['lsblk', '-o', 'NAME'])
 
-        # removing 'NAME' and 'sr'
         disk_names = set()
         for line in output.decode().split('\n'):
             if not line:
@@ -32,7 +31,7 @@ def _all_disks():
             disk_name = line.strip().split()[0]
             if disk_name == 'NAME' or disk_name.startswith('sr'):
                 continue
-            disk_name = '/dev/' + ''.join(filter(str.isalpha, disk_name))  # /dev/ added after clean up
+            disk_name = '/dev/' + disk_name  # /dev/ added
             disk_names.add(disk_name)
 
         return list(disk_names)
@@ -44,21 +43,28 @@ def _all_disks():
 def identify_disks():
     disk_list = _all_disks()
 
-    disk_list = [disk for disk in disk_list if not (disk.startswith('/dev/loop') or disk.startswith('/dev/nvmen'))]
+    if not disk_list:
+        print("No disks found.")
+        return []
 
-    nvme_disk = next((disk for disk in disk_list if disk.startswith('/dev/nvme')), None)
+    disk_list = [disk for disk in disk_list if disk.startswith('/dev/sd')]
 
-    if nvme_disk:
-        os_disk = nvme_disk
-    else:
-        os_disk = os.popen("df / | grep -Eo '^/[^0-9]+'").read().strip()
-        os_disk = '/dev/' + os_disk.split('/')[-1]  # Add '/dev/' to the beginning of the disk name
+    os_disks = []
+    mounts = os.popen("lsblk -o NAME,MOUNTPOINT").read().strip().split("\n")
 
-       # if os_disk not in disk_list:
-       #     print("Error: Unable to identify the OS disk. Operation halted.")
-       #     sys.exit(1)
+    for mount in mounts:
+        if "/boot" in mount or "/boot/efi" in mount:
+            os_disk = '/dev/' + mount.split()[0].lstrip('│─├─')  # Remove leading formatting characters
+            os_disks.append(os_disk)
+            print("OS Disk found:", os_disk)
 
-    # disk_list.remove(os_disk)
+    if not os_disks:
+        print("Error: Unable to identify the OS disk. Operation halted.")
+        sys.exit(1)
+
+    for os_disk in os_disks:
+        if os_disk in disk_list:
+            disk_list.remove(os_disk)
 
     if len(disk_list) == 0:
         print("No other disks found.")
@@ -227,7 +233,7 @@ def convert_size(size_in_bytes):
 
     for start, end, label in size_ranges:
         if start <= size_in_bytes < end:
-            return f"{rounded_size} {size_units[exponent]} ({label})"
+            return f"{label}"
 
     # fallback - if size doesn't fall into any predefined range, return the default formatted size
     return f"{rounded_size} {size_units[exponent]}"
