@@ -7,6 +7,10 @@ import threading
 import time
 
 from tqdm import tqdm
+from colorama import Fore, init
+
+# init colorama
+init(autoreset=True)
 
 # logging
 logging.basicConfig(filename='diskforge.log', level=logging.INFO)
@@ -44,7 +48,7 @@ def identify_disks():
     disk_list = _all_disks()
 
     if not disk_list:
-        print("No disks found.")
+        print(f"{Fore.RED}No disks found.")
         return []
 
     disk_list = [disk for disk in disk_list if disk.startswith('/dev/sd')]
@@ -56,10 +60,10 @@ def identify_disks():
         if "/boot" in mount or "/boot/efi" in mount:
             os_disk = '/dev/' + mount.split()[0].lstrip('│─├─')
             os_disks.append(os_disk)
-            print("OS Disk found:", os_disk)
+            print(f"{Fore.GREEN}OS Disk found: {os_disk}")
 
     if not os_disks:
-        print("Error: Unable to identify the OS disk. Operation halted.")
+        print(f"{Fore.RED}Error: Unable to identify the OS disk. Operation halted.")
         sys.exit(1)
 
     for os_disk in os_disks:
@@ -114,7 +118,7 @@ def clear_partitions_all(disks):
     print(f"Total Disks found: {len(disks)}")
     print("Clearing partition tables...")
 
-    # Single progress bar for all
+    # single progress bar for all
     progress_bar = tqdm(total=len(disks), desc="Overall Progress")
 
     # creating threads for each disk
@@ -224,9 +228,8 @@ def convert_size(size_in_bytes):
         (2500 * 1024 ** 3, 3000 * 1024 ** 3, '3TB'),
         (3500 * 1024 ** 3, 4000 * 1024 ** 3, '4TB'),
         (5500 * 1024 ** 3, 6000 * 1024 ** 3, '6TB'),
-        (7000 * 1024 ** 3, 8000 * 1024 ** 3, '8TB'),
-        (9000 * 1024 ** 3, 10000 * 1024 ** 3, '10TB'),
-        (11000 * 1024 ** 3, 12000 * 1024 ** 3, '12TB')
+        (7500 * 1024 ** 3, 8000 * 1024 ** 3, '8TB'),
+        (10000 * 1024 ** 3, 12000 * 1024 ** 3, '12TB')
     ]
 
     for start, end, label in size_ranges:
@@ -281,7 +284,6 @@ def get_smart_data(disk):
         output = subprocess.check_output(['sudo', 'smartctl', '-a', disk], stderr=subprocess.STDOUT).decode()
         return output
     except subprocess.CalledProcessError as e:
-        # print(f"Error retrieving SMART data for disk {disk}: {e.output.decode().strip()}")
         return e.output.decode()
 
 
@@ -341,10 +343,11 @@ def check_disk_health(disks):
         if smart_data:
             health_status, warnings = analyze_smart_data(smart_data)
             if health_status == 'Failed':
-                print(f"Disk {disk} is failing. Immediate action is required! Issues: {', '.join(warnings)}")
+                print(f"{Fore.RED}Disk {disk} is failing. Issues: {', '.join(warnings)}")
             elif health_status == 'Warning':
-                print(f"Disk {disk} has warnings. Issues: {', '.join(warnings)}")
+                print(f"{Fore.YELLOW}Disk {disk} has warnings. Issues: {', '.join(warnings)}")
             else:
-                print(f"Disk {disk} is healthy.")
+                print(f"{Fore.GREEN}Disk {disk} is healthy.")
         else:
             print(f"Failed to retrieve S.M.A.R.T. data for disk {disk}")
+
