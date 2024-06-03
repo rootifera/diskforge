@@ -44,22 +44,20 @@ def _all_disks():
 def identify_disks():
     disk_list = _all_disks()
 
-    # Check for the presence of an NVMe disk and set it as the OS disk if found
+    disk_list = [disk for disk in disk_list if not (disk.startswith('/dev/loop') or disk.startswith('/dev/nvmen'))]
+
     nvme_disk = next((disk for disk in disk_list if disk.startswith('/dev/nvme')), None)
 
     if nvme_disk:
         os_disk = nvme_disk
     else:
-        # Find OS disk, we don't want to format that
         os_disk = os.popen("df / | grep -Eo '^/[^0-9]+'").read().strip()
         os_disk = '/dev/' + os_disk.split('/')[-1]  # Add '/dev/' to the beginning of the disk name
 
         if os_disk not in disk_list:
-            # Safety net, if we can't find the OS disk let's not wipe anything.
             print("Error: Unable to identify the OS disk. Operation halted.")
             sys.exit(1)
 
-    # Remove the OS disk from the disks list
     disk_list.remove(os_disk)
 
     if len(disk_list) == 0:
