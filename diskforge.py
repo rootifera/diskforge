@@ -9,7 +9,6 @@ import time
 from tqdm import tqdm
 from colorama import Fore, init
 
-# init colorama
 init(autoreset=True)
 
 # logging
@@ -17,7 +16,8 @@ logging.basicConfig(filename='diskforge.log', level=logging.INFO)
 
 
 def confirm_action(disks):
-    print(f"The following disks will be cleared and formatted: {', '.join(disks)}")
+    disk_names_with_numbers = [f"Disk {i + 1} ({disk})" for i, disk in enumerate(disks)]
+    print(f"The following disks will be cleared and formatted: {', '.join(disk_names_with_numbers)}")
     confirmation = input("Are you sure you want to proceed? Type 'yes' to continue: ")
     if confirmation.lower() != 'yes':
         print("Operation cancelled.")
@@ -118,7 +118,6 @@ def clear_partitions_all(disks):
     print(f"Total Disks found: {len(disks)}")
     print("Clearing partition tables...")
 
-    # single progress bar for all
     progress_bar = tqdm(total=len(disks), desc="Overall Progress")
 
     # creating threads for each disk
@@ -257,8 +256,8 @@ def set_labels(disks):
 def draw_disk_size_graph(disk_sizes):
     max_size = max(disk_sizes.values())
 
-    for disk, size in disk_sizes.items():
-        print(f"{disk} = ", end="")
+    for i, (disk, size) in enumerate(disk_sizes.items(), start=1):
+        print(f"Disk {i} ({disk}) = ", end="")
 
         if size >= 10 ** 12:
             unit = "TB"
@@ -338,16 +337,16 @@ def analyze_smart_data(smart_data):
 
 
 def check_disk_health(disks):
-    for disk in disks:
+    for i, disk in enumerate(disks, start=1):
         smart_data = get_smart_data(disk)
+        disk_label = f"Disk {i} ({disk})"
         if smart_data:
             health_status, warnings = analyze_smart_data(smart_data)
             if health_status == 'Failed':
-                print(f"{Fore.RED}Disk {disk} is failing. Issues: {', '.join(warnings)}")
+                print(f"{Fore.RED}{disk_label} is failing. Immediate action is required! Issues: {', '.join(warnings)}")
             elif health_status == 'Warning':
-                print(f"{Fore.YELLOW}Disk {disk} has warnings. Issues: {', '.join(warnings)}")
+                print(f"{Fore.YELLOW}{disk_label} has warnings. Issues: {', '.join(warnings)}")
             else:
-                print(f"{Fore.GREEN}Disk {disk} is healthy.")
+                print(f"{disk_label} is healthy.")
         else:
-            print(f"Failed to retrieve S.M.A.R.T. data for disk {disk}")
-
+            print(f"Failed to retrieve S.M.A.R.T. data for {disk_label}")
