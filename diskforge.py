@@ -351,11 +351,11 @@ def check_disk_health(disks):
             disk_numbered = f"Disk {index} ({disk})"
             if health_status == 'Failed':
                 print(
-                    f"{Fore.RED}{disk_numbered} is failing. Serial: {serial_number} Issues: {', '.join(warnings)}{Style.RESET_ALL}")
+                    f"{Fore.RED}{disk_numbered} is failing.   	Serial: {serial_number} 	    Issues: {', '.join(warnings)}{Style.RESET_ALL}")
             elif health_status == 'Warning':
                 print(
-                    f"{Fore.YELLOW}{disk_numbered} has warnings. Serial: {serial_number} Issues: {', '.join(warnings)}{Style.RESET_ALL}")
+                    f"{Fore.YELLOW}{disk_numbered} has warnings.   	Serial: {serial_number} 		    Issues: {', '.join(warnings)}{Style.RESET_ALL}")
             else:
-                print(f"{Fore.GREEN}{disk_numbered} is healthy. Serial: {serial_number}{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}{disk_numbered} is healthy.		Serial: {serial_number}{Style.RESET_ALL}")
         else:
             print(f"{Fore.RED}Failed to retrieve S.M.A.R.T. data for {disk}{Style.RESET_ALL}")
