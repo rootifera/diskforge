@@ -7,7 +7,7 @@ import threading
 import time
 
 from tqdm import tqdm
-from colorama import Fore, init
+from colorama import Fore, init, Style
 
 init(autoreset=True)
 
@@ -51,7 +51,8 @@ def identify_disks():
         print(f"{Fore.RED}No disks found.")
         return []
 
-    disk_list = [disk for disk in disk_list if disk.startswith('/dev/sd')]
+    # Sort the disk list alphabetically
+    disk_list = sorted([disk for disk in disk_list if disk.startswith('/dev/sd')])
 
     os_disks = []
     mounts = os.popen("lsblk -o NAME,MOUNTPOINT").read().strip().split("\n")
@@ -289,9 +290,15 @@ def get_smart_data(disk):
 def analyze_smart_data(smart_data):
     if not smart_data:
         print("No SMART data to analyze.")
-        return None, []
+        return None, [], None
 
     lines = smart_data.split('\n')
+
+    serial_number = None
+    for line in lines:
+        if line.startswith('Serial Number:'):
+            serial_number = line.split(':')[1].strip()
+            break
 
     attribute_values = {
         'Reallocated_Sector_Ct': 0,
@@ -333,20 +340,22 @@ def analyze_smart_data(smart_data):
                 health_status = 'Warning'
                 warnings.append(f"{attribute} = {value}")
 
-    return health_status, warnings
+    return health_status, warnings, serial_number
 
 
 def check_disk_health(disks):
-    for i, disk in enumerate(disks, start=1):
+    for index, disk in enumerate(disks, start=1):
         smart_data = get_smart_data(disk)
-        disk_label = f"Disk {i} ({disk})"
         if smart_data:
-            health_status, warnings = analyze_smart_data(smart_data)
+            health_status, warnings, serial_number = analyze_smart_data(smart_data)
+            disk_numbered = f"Disk {index} ({disk})"
             if health_status == 'Failed':
-                print(f"{Fore.RED}{disk_label} is failing. Issues: {', '.join(warnings)}")
+                print(
+                    f"{Fore.RED}{disk_numbered} is failing. Serial: {serial_number} Issues: {', '.join(warnings)}{Style.RESET_ALL}")
             elif health_status == 'Warning':
-                print(f"{Fore.YELLOW}{disk_label} has warnings. Issues: {', '.join(warnings)}")
+                print(
+                    f"{Fore.YELLOW}{disk_numbered} has warnings. Serial: {serial_number} Issues: {', '.join(warnings)}{Style.RESET_ALL}")
             else:
-                print(f"{Fore.GREEN}{disk_label} is healthy.")
+                print(f"{Fore.GREEN}{disk_numbered} is healthy. Serial: {serial_number}{Style.RESET_ALL}")
         else:
-            print(f"Failed to retrieve S.M.A.R.T. data for {disk_label}")
+            print(f"{Fore.RED}Failed to retrieve S.M.A.R.T. data for {disk}{Style.RESET_ALL}")
