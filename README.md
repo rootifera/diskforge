@@ -11,7 +11,7 @@ This is a multi-threaded disk formatter application created for a specific use a
   - All disks are formatted as exFAT.
   - Finally, all disks are labeled according to their size.
  
-![Sample Output](https://i.gyazo.com/4ce75b59e69c5edf28ef555e02da6319.png)
+![Sample Output](https://i.gyazo.com/a939ee6f7a0a3e4a0b0c4a8c19b8b5d2.png)
 
 
 That's pretty much all.
