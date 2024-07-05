@@ -43,6 +43,7 @@ def _all_disks():
         print("Error: Unable to retrieve disk information.")
         return []
 
+
 def identify_disks():
     disk_list = _all_disks()
 
@@ -277,10 +278,14 @@ def visualize_disk_sizes(disks):
     draw_disk_size_graph(disk_sizes)
 
 
-def get_smart_data(disk):
+def get_smart_data(disk, timeout=10):
     try:
-        output = subprocess.check_output(['sudo', 'smartctl', '-a', disk], stderr=subprocess.STDOUT).decode()
-        return output
+        process = subprocess.Popen(['sudo', 'smartctl', '-a', disk], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, _ = process.communicate(timeout=timeout)
+        return output.decode()
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return "TIMEOUT"
     except subprocess.CalledProcessError as e:
         return e.output.decode()
 
@@ -344,7 +349,9 @@ def analyze_smart_data(smart_data):
 def check_disk_health(disks):
     for index, disk in enumerate(disks, start=1):
         smart_data = get_smart_data(disk)
-        if smart_data:
+        if smart_data == "TIMEOUT":
+            print(f"{Fore.RED}SMART Check Time Out for {disk}{Style.RESET_ALL}")
+        elif smart_data:
             health_status, warnings, serial_number = analyze_smart_data(smart_data)
             disk_numbered = f"Disk {index} ({disk})"
             if health_status == 'Failed':
