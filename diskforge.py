@@ -307,20 +307,12 @@ def analyze_smart_data(smart_data):
         'Reallocated_Sector_Ct': 0,
         'Reported_Uncorrect': 0,
         'Current_Pending_Sector': 0,
-        'UDMA_CRC_Error_Count': 0,
-        'Spin_Up_Time': 0,
-        'Seek_Error_Rate': 0,
-        'Hardware_ECC_Recovered': 0
     }
 
     attribute_map = {
         'Reallocated_Sector_Ct': '  5 Reallocated_Sector_Ct',
         'Reported_Uncorrect': '187 Reported_Uncorrect',
         'Current_Pending_Sector': '197 Current_Pending_Sector',
-        'UDMA_CRC_Error_Count': '199 UDMA_CRC_Error_Count',
-        'Spin_Up_Time': '  3 Spin_Up_Time',
-        'Seek_Error_Rate': '  7 Seek_Error_Rate',
-        'Hardware_ECC_Recovered': '195 Hardware_ECC_Recovered'
     }
 
     for line in lines:
@@ -331,17 +323,20 @@ def analyze_smart_data(smart_data):
                 except (IndexError, ValueError):
                     print(f"Error parsing attribute {attribute} from line: {line}")
 
-    health_status = 'OK'  # return OK if all is well
     warnings = []
 
-    for attribute, value in attribute_values.items():
-        if value > 0:
-            if attribute in ['Reallocated_Sector_Ct', 'Reported_Uncorrect']:
-                health_status = 'Failed'
-                warnings.append(f"{attribute} = {value}")
-            else:
-                health_status = 'Warning'
-                warnings.append(f"{attribute} = {value}")
+    # Check attributes and determine health_status
+    if attribute_values['Reallocated_Sector_Ct'] > 0 or attribute_values['Current_Pending_Sector'] > 0:
+        health_status = 'Failed'
+        if attribute_values['Reallocated_Sector_Ct'] > 0:
+            warnings.append(f"Reallocated_Sector_Ct = {attribute_values['Reallocated_Sector_Ct']}")
+        if attribute_values['Current_Pending_Sector'] > 0:
+            warnings.append(f"Current_Pending_Sector = {attribute_values['Current_Pending_Sector']}")
+    elif attribute_values['Reported_Uncorrect'] > 0:
+        health_status = 'Warning'
+        warnings.append(f"Reported_Uncorrect = {attribute_values['Reported_Uncorrect']}")
+    else:
+        health_status = 'OK'
 
     return health_status, warnings, serial_number
 
