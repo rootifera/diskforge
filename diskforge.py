@@ -43,7 +43,6 @@ def _all_disks():
         print("Error: Unable to retrieve disk information.")
         return []
 
-
 def identify_disks():
     disk_list = _all_disks()
 
@@ -55,15 +54,13 @@ def identify_disks():
     disk_list = sorted([disk for disk in disk_list if disk.startswith('/dev/sd')])
 
     os_disks = []
-    mounts = os.popen("lsblk -o NAME,MOUNTPOINT").read().strip().split("\n")
-
-    for mount in mounts:
-        if "/boot" in mount or "/boot/efi" in mount:
-            os_disk = '/dev/' + mount.split()[0].lstrip('│─├─')
-            os_disks.append(os_disk)
-            print(f"{Fore.GREEN}OS Disk found: {os_disk}")
-
-    if not os_disks:
+    try:
+        os_disk_output = subprocess.check_output(['findmnt', '-n', '-o', 'SOURCE', '/']).strip().decode()
+        os_disk = os_disk_output.rsplit('/', 1)[-1]
+        os_disk_base = os_disk.rstrip('0123456789')
+        os_disks.append('/dev/' + os_disk_base)
+        print(f"{Fore.GREEN}OS Disk found: /dev/{os_disk_base}")
+    except subprocess.CalledProcessError:
         print(f"{Fore.RED}Error: Unable to identify the OS disk. Operation halted.")
         sys.exit(1)
 
