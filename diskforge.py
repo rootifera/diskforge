@@ -12,7 +12,7 @@ from colorama import Fore, init, Style
 init(autoreset=True)
 
 # logging
-logging.basicConfig(filename='diskforge.log', level=logging.INFO)
+logging.basicConfig(filename='/var/log/diskforge.log', level=logging.INFO)
 
 
 def confirm_action(disks):
@@ -48,26 +48,36 @@ def identify_disks():
     disk_list = _all_disks()
 
     if not disk_list:
-        print(f"{Fore.RED}No disks found.")
+        print(f"{Fore.RED}No disks found.{Style.RESET_ALL}")
         return []
 
-    # Sort the disk list alphabetically
+    # disk sorting
     disk_list = sorted([disk for disk in disk_list if disk.startswith('/dev/sd')])
 
     os_disks = []
     try:
         os_disk_output = subprocess.check_output(['findmnt', '-n', '-o', 'SOURCE', '/']).strip().decode()
-        os_disk = os_disk_output.rsplit('/', 1)[-1]
-        os_disk_base = os_disk.rstrip('0123456789')
-        os_disks.append('/dev/' + os_disk_base)
-        print(f"{Fore.GREEN}OS Disk found: /dev/{os_disk_base}")
-    except subprocess.CalledProcessError:
-        print(f"{Fore.RED}Error: Unable to identify the OS disk. Operation halted.")
+        if os_disk_output.startswith('/dev/mapper'):
+            # for LVM or RAID
+            pvs_output = subprocess.check_output(['pvs', '--noheadings', '-o', 'pv_name']).strip().decode()
+            pvs_disks = ['/dev/' + line.split('/')[-1] for line in pvs_output.split('\n')]
+            os_disks.extend(pvs_disks)
+        else:
+            # usual sdx
+            os_disk = os_disk_output.rsplit('/', 1)[-1]
+            os_disk_base = os_disk.rstrip('0123456789')
+            os_disks.append('/dev/' + os_disk_base)
+        print(f"{Fore.GREEN}OS Disk(s) found: {', '.join(os_disks)}{Style.RESET_ALL}")
+    except subprocess.CalledProcessError as e:
+        print(f"{Fore.RED}Error: Unable to identify the OS disk. Operation halted. {e}{Style.RESET_ALL}")
         sys.exit(1)
 
     for os_disk in os_disks:
         if os_disk in disk_list:
             disk_list.remove(os_disk)
+
+    # exclude NVME disks from the list
+    disk_list = [disk for disk in disk_list if not disk.startswith('/dev/nvme')]
 
     if len(disk_list) == 0:
         print("No other disks found.")
@@ -364,8 +374,10 @@ def check_disk_health(disks):
             else:
                 status_color = Fore.GREEN
             issues = ', '.join(warnings) if warnings else 'None'
+            serial_number = serial_number if serial_number is not None else ""
             print(
-                f"{status_color}{disk_numbered}    Size: {disk_size}    Status: {health_status}        Serial: {serial_number}        Issues: {issues}{Style.RESET_ALL}")
+                f"{status_color}{disk_numbered:<20} Size: {disk_size:<8} Status: {health_status:<8} Serial: {serial_number:<20} Issues: {issues}{Style.RESET_ALL}")
         else:
             print(f"{Fore.RED}Failed to retrieve S.M.A.R.T. data for {disk}{Style.RESET_ALL}")
+
 
