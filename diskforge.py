@@ -220,7 +220,7 @@ def convert_size(size_in_bytes):
         (115 * 1024 ** 3, 128 * 1024 ** 3, '128GB'),
         (200 * 1024 ** 3, 256 * 1024 ** 3, '256GB'),
         (400 * 1024 ** 3, 500 * 1024 ** 3, '500GB'),
-        (690 * 1024 ** 3, 730 * 1024 ** 3, '750GB'),
+        (690 * 1024 ** 3, 750 * 1024 ** 3, '750GB'),
         (900 * 1024 ** 3, 1000 * 1024 ** 3, '1TB'),
         (1300 * 1024 ** 3, 1500 * 1024 ** 3, '1.5TB'),
         (1700 * 1024 ** 3, 2000 * 1024 ** 3, '2TB'),
@@ -236,7 +236,7 @@ def convert_size(size_in_bytes):
             return f"{label}"
 
     # fallback - if size doesn't fall into any predefined range, return the default formatted size
-    return f"{rounded_size} {size_units[exponent]}"
+    return f"{rounded_size}{size_units[exponent]}"
 
 
 def set_labels(disks):
@@ -257,20 +257,26 @@ def draw_disk_size_graph(disk_sizes):
     max_size = max(disk_sizes.values())
 
     for i, (disk, size) in enumerate(disk_sizes.items(), start=1):
-        print(f"Disk {i} ({disk}) = ", end="")
+        # added leading zero for formatting
+        disk_number = f"{i:02d}"
+        print(f"Disk {disk_number} ({disk}) = ", end="")
 
-        if size >= 10 ** 12:
-            unit = "TB"
-            divisor = 10 ** 12
+        formatted_size = convert_size(size)
+
+        if formatted_size == '500GB':
+            color = Fore.GREEN
+        elif formatted_size == '750GB':
+            color = Fore.BLUE
+        elif formatted_size == '1TB':
+            color = Fore.WHITE
         else:
-            unit = "GB"
-            divisor = 10 ** 9
+            color = Fore.YELLOW
 
         scaled_size = size * 40 // max_size
         bar = "|" + "=" * scaled_size + "|"
 
-        print(bar.ljust(80), end=" ")
-        print(f"{size // divisor}{unit}")
+        print(color + bar.ljust(80), end=" ")
+        print(color + formatted_size)
 
 
 def visualize_disk_sizes(disks):
