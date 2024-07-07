@@ -348,20 +348,24 @@ def analyze_smart_data(smart_data):
 
 
 def check_disk_health(disks):
+    disk_sizes = get_disk_sizes(disks)
     for index, disk in enumerate(disks, start=1):
         smart_data = get_smart_data(disk)
+        disk_size = convert_size(disk_sizes.get(disk, 0))
         if smart_data == "TIMEOUT":
             print(f"{Fore.RED}SMART Check Time Out for {disk}{Style.RESET_ALL}")
         elif smart_data:
             health_status, warnings, serial_number = analyze_smart_data(smart_data)
-            disk_numbered = f"Disk {index} ({disk})"
+            disk_numbered = f"Disk {index:02d} ({disk})"
             if health_status == 'Failed':
-                print(
-                    f"{Fore.RED}{disk_numbered} is failing.   	Serial: {serial_number} 	    Issues: {', '.join(warnings)}{Style.RESET_ALL}")
+                status_color = Fore.RED
             elif health_status == 'Warning':
-                print(
-                    f"{Fore.YELLOW}{disk_numbered} has warnings.   	Serial: {serial_number} 		    Issues: {', '.join(warnings)}{Style.RESET_ALL}")
+                status_color = Fore.YELLOW
             else:
-                print(f"{Fore.GREEN}{disk_numbered} is healthy.		Serial: {serial_number}{Style.RESET_ALL}")
+                status_color = Fore.GREEN
+            issues = ', '.join(warnings) if warnings else 'None'
+            print(
+                f"{status_color}{disk_numbered}    Size: {disk_size}    Status: {health_status}        Serial: {serial_number}        Issues: {issues}{Style.RESET_ALL}")
         else:
             print(f"{Fore.RED}Failed to retrieve S.M.A.R.T. data for {disk}{Style.RESET_ALL}")
+
