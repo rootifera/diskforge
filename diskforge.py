@@ -12,7 +12,7 @@ from colorama import Fore, init, Style
 init(autoreset=True)
 
 # logging
-logging.basicConfig(filename='diskforge.log', level=logging.INFO)
+logging.basicConfig(filename='/var/log/diskforge.log', level=logging.INFO)
 
 
 def confirm_action(disks):
@@ -48,28 +48,36 @@ def identify_disks():
     disk_list = _all_disks()
 
     if not disk_list:
-        print(f"{Fore.RED}No disks found.")
+        print(f"{Fore.RED}No disks found.{Style.RESET_ALL}")
         return []
 
-    # Sort the disk list alphabetically
+    # disk sorting
     disk_list = sorted([disk for disk in disk_list if disk.startswith('/dev/sd')])
 
     os_disks = []
-    mounts = os.popen("lsblk -o NAME,MOUNTPOINT").read().strip().split("\n")
-
-    for mount in mounts:
-        if "/boot" in mount or "/boot/efi" in mount:
-            os_disk = '/dev/' + mount.split()[0].lstrip('│─├─')
-            os_disks.append(os_disk)
-            print(f"{Fore.GREEN}OS Disk found: {os_disk}")
-
-    if not os_disks:
-        print(f"{Fore.RED}Error: Unable to identify the OS disk. Operation halted.")
+    try:
+        os_disk_output = subprocess.check_output(['findmnt', '-n', '-o', 'SOURCE', '/']).strip().decode()
+        if os_disk_output.startswith('/dev/mapper'):
+            # for LVM or RAID
+            pvs_output = subprocess.check_output(['pvs', '--noheadings', '-o', 'pv_name']).strip().decode()
+            pvs_disks = ['/dev/' + line.split('/')[-1] for line in pvs_output.split('\n')]
+            os_disks.extend(pvs_disks)
+        else:
+            # usual sdx
+            os_disk = os_disk_output.rsplit('/', 1)[-1]
+            os_disk_base = os_disk.rstrip('0123456789')
+            os_disks.append('/dev/' + os_disk_base)
+        print(f"{Fore.GREEN}OS Disk(s) found: {', '.join(os_disks)}{Style.RESET_ALL}")
+    except subprocess.CalledProcessError as e:
+        print(f"{Fore.RED}Error: Unable to identify the OS disk. Operation halted. {e}{Style.RESET_ALL}")
         sys.exit(1)
 
     for os_disk in os_disks:
         if os_disk in disk_list:
             disk_list.remove(os_disk)
+
+    # exclude NVME disks from the list
+    disk_list = [disk for disk in disk_list if not disk.startswith('/dev/nvme')]
 
     if len(disk_list) == 0:
         print("No other disks found.")
@@ -222,6 +230,7 @@ def convert_size(size_in_bytes):
         (115 * 1024 ** 3, 128 * 1024 ** 3, '128GB'),
         (200 * 1024 ** 3, 256 * 1024 ** 3, '256GB'),
         (400 * 1024 ** 3, 500 * 1024 ** 3, '500GB'),
+        (690 * 1024 ** 3, 750 * 1024 ** 3, '750GB'),
         (900 * 1024 ** 3, 1000 * 1024 ** 3, '1TB'),
         (1300 * 1024 ** 3, 1500 * 1024 ** 3, '1.5TB'),
         (1700 * 1024 ** 3, 2000 * 1024 ** 3, '2TB'),
@@ -237,7 +246,7 @@ def convert_size(size_in_bytes):
             return f"{label}"
 
     # fallback - if size doesn't fall into any predefined range, return the default formatted size
-    return f"{rounded_size} {size_units[exponent]}"
+    return f"{rounded_size}{size_units[exponent]}"
 
 
 def set_labels(disks):
@@ -258,20 +267,26 @@ def draw_disk_size_graph(disk_sizes):
     max_size = max(disk_sizes.values())
 
     for i, (disk, size) in enumerate(disk_sizes.items(), start=1):
-        print(f"Disk {i} ({disk}) = ", end="")
+        # added leading zero for formatting
+        disk_number = f"{i:02d}"
+        print(f"Disk {disk_number} ({disk}) = ", end="")
 
-        if size >= 10 ** 12:
-            unit = "TB"
-            divisor = 10 ** 12
+        formatted_size = convert_size(size)
+
+        if formatted_size == '500GB':
+            color = Fore.GREEN
+        elif formatted_size == '750GB':
+            color = Fore.BLUE
+        elif formatted_size == '1TB':
+            color = Fore.WHITE
         else:
-            unit = "GB"
-            divisor = 10 ** 9
+            color = Fore.YELLOW
 
         scaled_size = size * 40 // max_size
         bar = "|" + "=" * scaled_size + "|"
 
-        print(bar.ljust(80), end=" ")
-        print(f"{size // divisor}{unit}")
+        print(color + bar.ljust(80), end=" ")
+        print(color + formatted_size)
 
 
 def visualize_disk_sizes(disks):
@@ -279,10 +294,14 @@ def visualize_disk_sizes(disks):
     draw_disk_size_graph(disk_sizes)
 
 
-def get_smart_data(disk):
+def get_smart_data(disk, timeout=10):
     try:
-        output = subprocess.check_output(['sudo', 'smartctl', '-a', disk], stderr=subprocess.STDOUT).decode()
-        return output
+        process = subprocess.Popen(['sudo', 'smartctl', '-a', disk], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, _ = process.communicate(timeout=timeout)
+        return output.decode()
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return "TIMEOUT"
     except subprocess.CalledProcessError as e:
         return e.output.decode()
 
@@ -304,20 +323,12 @@ def analyze_smart_data(smart_data):
         'Reallocated_Sector_Ct': 0,
         'Reported_Uncorrect': 0,
         'Current_Pending_Sector': 0,
-        'UDMA_CRC_Error_Count': 0,
-        'Spin_Up_Time': 0,
-        'Seek_Error_Rate': 0,
-        'Hardware_ECC_Recovered': 0
     }
 
     attribute_map = {
         'Reallocated_Sector_Ct': '  5 Reallocated_Sector_Ct',
         'Reported_Uncorrect': '187 Reported_Uncorrect',
         'Current_Pending_Sector': '197 Current_Pending_Sector',
-        'UDMA_CRC_Error_Count': '199 UDMA_CRC_Error_Count',
-        'Spin_Up_Time': '  3 Spin_Up_Time',
-        'Seek_Error_Rate': '  7 Seek_Error_Rate',
-        'Hardware_ECC_Recovered': '195 Hardware_ECC_Recovered'
     }
 
     for line in lines:
@@ -328,34 +339,45 @@ def analyze_smart_data(smart_data):
                 except (IndexError, ValueError):
                     print(f"Error parsing attribute {attribute} from line: {line}")
 
-    health_status = 'OK'  # return OK if all is well
     warnings = []
 
-    for attribute, value in attribute_values.items():
-        if value > 0:
-            if attribute in ['Reallocated_Sector_Ct', 'Reported_Uncorrect']:
-                health_status = 'Failed'
-                warnings.append(f"{attribute} = {value}")
-            else:
-                health_status = 'Warning'
-                warnings.append(f"{attribute} = {value}")
+    # Check attributes and determine health_status
+    if attribute_values['Reallocated_Sector_Ct'] > 0 or attribute_values['Current_Pending_Sector'] > 0:
+        health_status = 'Failed'
+        if attribute_values['Reallocated_Sector_Ct'] > 0:
+            warnings.append(f"Reallocated_Sector_Ct = {attribute_values['Reallocated_Sector_Ct']}")
+        if attribute_values['Current_Pending_Sector'] > 0:
+            warnings.append(f"Current_Pending_Sector = {attribute_values['Current_Pending_Sector']}")
+    elif attribute_values['Reported_Uncorrect'] > 0:
+        health_status = 'Warning'
+        warnings.append(f"Reported_Uncorrect = {attribute_values['Reported_Uncorrect']}")
+    else:
+        health_status = 'OK'
 
     return health_status, warnings, serial_number
 
 
 def check_disk_health(disks):
+    disk_sizes = get_disk_sizes(disks)
     for index, disk in enumerate(disks, start=1):
         smart_data = get_smart_data(disk)
-        if smart_data:
+        disk_size = convert_size(disk_sizes.get(disk, 0))
+        if smart_data == "TIMEOUT":
+            print(f"{Fore.RED}SMART Check Time Out for {disk}{Style.RESET_ALL}")
+        elif smart_data:
             health_status, warnings, serial_number = analyze_smart_data(smart_data)
-            disk_numbered = f"Disk {index} ({disk})"
+            disk_numbered = f"Disk {index:02d} ({disk})"
             if health_status == 'Failed':
-                print(
-                    f"{Fore.RED}{disk_numbered} is failing.   	Serial: {serial_number} 	    Issues: {', '.join(warnings)}{Style.RESET_ALL}")
+                status_color = Fore.RED
             elif health_status == 'Warning':
-                print(
-                    f"{Fore.YELLOW}{disk_numbered} has warnings.   	Serial: {serial_number} 		    Issues: {', '.join(warnings)}{Style.RESET_ALL}")
+                status_color = Fore.YELLOW
             else:
-                print(f"{Fore.GREEN}{disk_numbered} is healthy.		Serial: {serial_number}{Style.RESET_ALL}")
+                status_color = Fore.GREEN
+            issues = ', '.join(warnings) if warnings else 'None'
+            serial_number = serial_number if serial_number is not None else ""
+            print(
+                f"{status_color}{disk_numbered:<20} Size: {disk_size:<8} Status: {health_status:<8} Serial: {serial_number:<20} Issues: {issues}{Style.RESET_ALL}")
         else:
             print(f"{Fore.RED}Failed to retrieve S.M.A.R.T. data for {disk}{Style.RESET_ALL}")
+
+
