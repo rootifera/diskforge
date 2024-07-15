@@ -21,6 +21,8 @@ if __name__ == "__main__":
     diskforge.check_disk_health(disks)
     print(f"{Fore.BLUE}=========== Disk Size ==============")
     diskforge.visualize_disk_sizes(disks)
+    print(f"{Fore.BLUE}=========== Umount Partitions ======")
+    diskforge.unmount_disks_partitions(disks)
     print(f"{Fore.BLUE}=========== Confirmation ===========")
     diskforge.confirm_action(disks)
     print(f"{Fore.BLUE}====================================")

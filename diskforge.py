@@ -86,6 +86,48 @@ def identify_disks():
     return disk_list
 
 
+def unmount_disks_partitions(disks):
+    for disk in disks:
+        try:
+            partitions_output = subprocess.check_output(
+                f"lsblk -ln -o NAME {disk}",
+                shell=True,
+                universal_newlines=True
+            ).strip()
+
+            partitions = [f"/dev/{part}" for part in partitions_output.split('\n') if part]
+
+            if not partitions:
+                continue
+
+            unmounted = False
+
+            for partition in partitions:
+                try:
+                    mount_points = subprocess.check_output(
+                        f"findmnt -rno TARGET -S {partition}",
+                        shell=True,
+                        universal_newlines=True
+                    ).strip().split('\n')
+
+                    for mount_point in mount_points:
+                        if mount_point:
+                            subprocess.run(
+                                f"sudo umount -f {mount_point}",
+                                shell=True,
+                                check=True,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL
+                            )
+                            print(f"Unmounted {mount_point}")
+                            unmounted = True
+                except subprocess.CalledProcessError:
+                    pass
+
+        except subprocess.CalledProcessError:
+            pass # outout gets too verbose if I print this one or the one above.
+
+
 def verify_disk_partitions(disk):
     try:
         output = subprocess.check_output(['lsblk', '-o', 'NAME,SIZE,TYPE', disk]).decode()
@@ -379,5 +421,3 @@ def check_disk_health(disks):
                 f"{status_color}{disk_numbered:<20} Size: {disk_size:<8} Status: {health_status:<8} Serial: {serial_number:<20} Issues: {issues}{Style.RESET_ALL}")
         else:
             print(f"{Fore.RED}Failed to retrieve S.M.A.R.T. data for {disk}{Style.RESET_ALL}")
-
-
