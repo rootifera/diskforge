@@ -5,7 +5,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="diskforge",
-    version="1.1",
+    version="1.2",
     author="Omur Ozbahceliler",
     author_email="omur@rootifera.org",
     description="Multi-threaded disk formatter",
