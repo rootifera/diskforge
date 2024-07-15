@@ -87,6 +87,8 @@ def identify_disks():
 
 
 def unmount_disks_partitions(disks):
+    any_unmounted = False
+
     for disk in disks:
         try:
             partitions_output = subprocess.check_output(
@@ -99,8 +101,6 @@ def unmount_disks_partitions(disks):
 
             if not partitions:
                 continue
-
-            unmounted = False
 
             for partition in partitions:
                 try:
@@ -120,12 +120,15 @@ def unmount_disks_partitions(disks):
                                 stderr=subprocess.DEVNULL
                             )
                             print(f"Unmounted {mount_point}")
-                            unmounted = True
+                            any_unmounted = True
                 except subprocess.CalledProcessError:
                     pass
 
         except subprocess.CalledProcessError:
-            pass # outout gets too verbose if I print this one or the one above.
+            pass
+
+    if not any_unmounted:
+        print("None Found")
 
 
 def verify_disk_partitions(disk):
