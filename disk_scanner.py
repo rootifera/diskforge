@@ -63,7 +63,7 @@ def scan_disk(disk_path, sector_size, update_queue, lock, stop_event, perform_wr
             for sector in range(total_sectors):
                 if stop_event.is_set():
                     with lock:
-                        update_queue[disk_path]['stopped'] = True
+                        update_queue[disk_path]['status'] = 'DONE'
                     break
 
                 read_time = time_operation(read_sector, fd, sector, sector_size)
@@ -77,6 +77,10 @@ def scan_disk(disk_path, sector_size, update_queue, lock, stop_event, perform_wr
                     update_disk_stats(update_queue, disk_path, read_time)
                     if perform_write:
                         update_disk_stats(update_queue, disk_path, write_time)
+
+            if not stop_event.is_set():
+                with lock:
+                    update_queue[disk_path]['status'] = 'DONE'
 
     except Exception as e:
         with lock:
@@ -110,11 +114,18 @@ def draw_disk_stats(stdscr, y, x, disk_num, disk, update_queue, lock):
         stdscr.addstr(y + 1, x, f"<5ms     = {stats['<5ms']}", curses.color_pair(1))
         stdscr.addstr(y + 2, x, f"<10ms    = {stats['<10ms']}", curses.color_pair(2))
         stdscr.addstr(y + 3, x, f"<20ms    = {stats['<20ms']}", curses.color_pair(3))
-        stdscr.addstr(y + 4, x, f"<50ms    = {stats['<50ms']}", curses.color_pair(4))
-        stdscr.addstr(y + 5, x, f"<150ms   = {stats['<150ms']}", curses.color_pair(5))
-        stdscr.addstr(y + 6, x, f"<500ms   = {stats['<500ms']}", curses.color_pair(6))
-        stdscr.addstr(y + 7, x, f">500ms   = {stats['>500ms']}", curses.color_pair(7))
-        stdscr.addstr(y + 8, x, f"BAD      = {stats['bad']}", curses.color_pair(8) | curses.A_BOLD)
+        stdscr.addstr(y + 4, x, f"<50ms    = {stats['<50ms']}", curses.color_pair(3))
+        stdscr.addstr(y + 5, x, f"<150ms   = {stats['<150ms']}", curses.color_pair(4))
+        stdscr.addstr(y + 6, x, f"<500ms   = {stats['<500ms']}", curses.color_pair(5))
+        stdscr.addstr(y + 7, x, f">500ms   = {stats['>500ms']}", curses.color_pair(6))
+        stdscr.addstr(y + 8, x, f"BAD      = {stats['bad']}", curses.color_pair(6) | curses.A_BOLD)
+
+        separator_y = y + 9
+        stdscr.addstr(separator_y, x, f"-------------------", curses.color_pair(7) | curses.A_BOLD)
+
+        status_y = y + 10
+        status = stats.get('status', 'SCANNING')
+        stdscr.addstr(status_y, x, f"STATUS   = {status}", curses.color_pair(7) | curses.A_BOLD)
 
 
 def update_ui(stdscr, update_queue, lock, disk_map, stop_events):
@@ -123,14 +134,14 @@ def update_ui(stdscr, update_queue, lock, disk_map, stop_events):
     curses.echo()
 
     curses.start_color()
+
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-    curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-    curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
-    curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
-    curses.init_pair(7, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(8, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    curses.init_pair(5, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+    curses.init_pair(6, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(7, curses.COLOR_GREEN, curses.COLOR_BLACK)
 
     height, width = stdscr.getmaxyx()
     max_width_per_disk = 30
@@ -150,22 +161,16 @@ def update_ui(stdscr, update_queue, lock, disk_map, stop_events):
             y = row * 10
             x = col * max_width_per_disk
 
-            if y + 8 >= height:
+            if y + 9 >= height:
                 stdscr.addstr(height - 1, 0, "Not all disks are displayed.")
                 break
 
             disk_display = f"Disk {disk_num + 1}: {disk}"
 
-            if 'stopped' in update_queue[disk]:
-                disk_display += " - FINISHED"
-                stdscr.addstr(y, x, disk_display, curses.color_pair(5))
-                continue
-
             if 'error' in update_queue[disk]:
                 stdscr.addstr(y, x, f"{disk_display}: {update_queue[disk]['error']}", curses.color_pair(7))
                 continue
 
-            # Default status for ongoing scan
             stdscr.addstr(y, x, disk_display)
             draw_disk_stats(stdscr, y, x, disk_num + 1, disk, update_queue, lock)
 
@@ -224,4 +229,5 @@ def scan_disks(disks):
             t.join()
 
     log_summary(update_queue, disk_map)
+    os.system('reset')
     print("Scan complete. Summary written to diskforge_scan.log.")
